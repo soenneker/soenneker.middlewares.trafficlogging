@@ -44,6 +44,6 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.0" />
         <PackageReference Include="Soenneker.Utils.Json" Version="3.0.2326" />
-        <PackageReference Include="Soenneker.Utils.MemoryStream" Version="3.0.1242" />
+        <PackageReference Include="Soenneker.Utils.MemoryStream" Version="3.0.1243" />
     </ItemGroup>
 </Project>
