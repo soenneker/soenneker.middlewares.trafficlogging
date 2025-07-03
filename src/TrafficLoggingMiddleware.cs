@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 namespace Soenneker.Middlewares.TrafficLogging;
 
 /// <inheritdoc cref="ITrafficLoggingMiddleware"/>
-public class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
+public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<TrafficLoggingMiddleware> _logger;
