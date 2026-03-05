@@ -50,7 +50,7 @@
 
     <ItemGroup>
         <PackageReference Include="Soenneker.Extensions.Stream" Version="4.0.100" />
-        <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2444" />
+        <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2445" />
         <PackageReference Include="Soenneker.Utils.MemoryStream" Version="4.0.1376" />
     </ItemGroup>
 </Project>
