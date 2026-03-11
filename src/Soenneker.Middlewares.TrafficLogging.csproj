@@ -49,7 +49,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Soenneker.Extensions.Stream" Version="4.0.106" />
+        <PackageReference Include="Soenneker.Extensions.Stream" Version="4.0.107" />
         <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2464" />
         <PackageReference Include="Soenneker.Utils.MemoryStream" Version="4.0.1394" />
     </ItemGroup>
