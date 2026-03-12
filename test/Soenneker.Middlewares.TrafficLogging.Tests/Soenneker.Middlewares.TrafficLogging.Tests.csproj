@@ -27,7 +27,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\Soenneker.Middlewares.TrafficLogging.csproj" />
+        <ProjectReference Include="..\..\src\Soenneker.Middlewares.TrafficLogging\Soenneker.Middlewares.TrafficLogging.csproj" />
     </ItemGroup>
 
     <ItemGroup>
