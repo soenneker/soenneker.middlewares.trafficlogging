@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Soenneker.Middlewares.TrafficLogging.Abstract;
 using Soenneker.Utils.MemoryStream.Registrars;
@@ -12,6 +12,7 @@ public static class TrafficLoggingMiddlewareRegistrar
 {
     /// <summary>
     /// Adds <see cref="ITrafficLoggingMiddleware"/> as a singleton service. <para/>
+    /// Set <c>TrafficLogging:EnableHeaderRedaction</c> in configuration to false to disable redaction (default is true).
     /// </summary>
     public static IServiceCollection AddTrafficLoggingMiddlewareAsSingleton(this IServiceCollection services)
     {

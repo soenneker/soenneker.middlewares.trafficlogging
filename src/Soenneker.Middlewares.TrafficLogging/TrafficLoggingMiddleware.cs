@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Soenneker.Extensions.Stream;
 using Soenneker.Extensions.Task;
@@ -24,12 +25,14 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<TrafficLoggingMiddleware> _logger;
     private readonly IMemoryStreamUtil _memoryStreamUtil;
+    private readonly bool _enableHeaderRedaction;
 
-    public TrafficLoggingMiddleware(RequestDelegate next, ILogger<TrafficLoggingMiddleware> logger, IMemoryStreamUtil memoryStreamUtil)
+    public TrafficLoggingMiddleware(RequestDelegate next, ILogger<TrafficLoggingMiddleware> logger, IMemoryStreamUtil memoryStreamUtil, IConfiguration configuration)
     {
         _next = next;
         _logger = logger;
         _memoryStreamUtil = memoryStreamUtil;
+        _enableHeaderRedaction = configuration.GetValue("TrafficLogging:EnableHeaderRedaction", true);
     }
 
     public async Task Invoke(HttpContext context)
@@ -52,7 +55,7 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
         if (!ShouldReadBody(req.Method, req.ContentLength, req.ContentType))
         {
             _logger.LogInformation("HTTP Request: {Scheme} {Host} {Path} {QueryString} Status:{Status} {@Headers}", req.Scheme, req.Host, req.Path,
-                req.QueryString.Value ?? string.Empty, context.Response.StatusCode, req.Headers);
+                req.QueryString.Value ?? string.Empty, context.Response.StatusCode, TrafficLogHeaderRedactor.Redact(req.Headers, enableRedaction: _enableHeaderRedaction));
             return;
         }
 
@@ -65,7 +68,7 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
 
         _logger.LogInformation(
             "HTTP Request: {Scheme} {Host} {Path} {QueryString} Status:{Status} {@Headers} BodyLength:{BodyLength} Body(TruncatedTo:{Cap}): {Body}", req.Scheme,
-            req.Host, req.Path, req.QueryString.Value ?? string.Empty, context.Response.StatusCode, req.Headers, totalLength, _maxLoggedBodyBytes, bodyText);
+            req.Host, req.Path, req.QueryString.Value ?? string.Empty, context.Response.StatusCode, TrafficLogHeaderRedactor.Redact(req.Headers, enableRedaction: _enableHeaderRedaction), totalLength, _maxLoggedBodyBytes, bodyText);
     }
 
     private async ValueTask LogResponse(HttpContext context)
@@ -119,7 +122,7 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
         _logger.LogInformation(
             "HTTP Response: {Scheme} {Host} {Path} Status:{Status} {QueryString} {@Headers} BodyLength:{BodyLength} Body(TruncatedTo:{Cap}): {Body}",
             context.Request.Scheme, context.Request.Host, context.Request.Path, context.Response.StatusCode, context.Request.QueryString.Value ?? string.Empty,
-            context.Response.Headers, bodyLength, _maxLoggedBodyBytes, responseText);
+            TrafficLogHeaderRedactor.Redact(context.Response.Headers, enableRedaction: _enableHeaderRedaction), bodyLength, _maxLoggedBodyBytes, responseText);
 
         // Copy buffered response to the actual stream
         responseBuffer.ToStart();
@@ -148,7 +151,10 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
         ReadOnlySpan<char> s = contentType.AsSpan();
 
         int semi = s.IndexOf(';');
-        if (semi >= 0) s = s.Slice(0, semi);
+
+        if (semi >= 0)
+            s = s.Slice(0, semi);
+
         s = s.Trim();
 
         if (s.StartsWith("text/", StringComparison.OrdinalIgnoreCase))
@@ -194,7 +200,10 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
 
         ReadOnlySpan<char> rest = s.Slice(idx + "charset=".Length);
         int semi = rest.IndexOf(';');
-        if (semi >= 0) rest = rest.Slice(0, semi);
+
+        if (semi >= 0) 
+            rest = rest.Slice(0, semi);
+
         rest = rest.Trim();
 
         try
