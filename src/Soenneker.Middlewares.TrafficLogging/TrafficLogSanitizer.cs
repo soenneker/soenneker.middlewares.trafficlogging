@@ -1,6 +1,7 @@
-using System;
 using Soenneker.Extensions.String;
 using Soenneker.Utils.PooledStringBuilders;
+using System;
+using System.Runtime.CompilerServices;
 
 namespace Soenneker.Middlewares.TrafficLogging;
 
@@ -14,9 +15,25 @@ internal static class TrafficLogSanitizer
         ReadOnlySpan<char> source = value.AsSpan();
         int len = Math.Min(source.Length, maxLength);
 
-        using var sb = new PooledStringBuilder(len);
+        bool needsEscaping = false;
 
-        for (var i = 0; i < len; i++)
+        for (int i = 0; i < len; i++)
+        {
+            char c = source[i];
+
+            if (c is '\r' or '\n' or '\t' || char.IsControl(c))
+            {
+                needsEscaping = true;
+                break;
+            }
+        }
+
+        if (!needsEscaping && source.Length <= maxLength)
+            return value;
+
+        var sb = new PooledStringBuilder(len + 16);
+
+        for (int i = 0; i < len; i++)
         {
             char c = source[i];
 
@@ -34,13 +51,13 @@ internal static class TrafficLogSanitizer
                 default:
                     if (char.IsControl(c))
                     {
-                        sb.Append("\\u");
-                        sb.Append(((int)c).ToString("x4"));
+                        AppendUnicodeEscape(ref sb, c);
                     }
                     else
                     {
                         sb.Append(c);
                     }
+
                     break;
             }
         }
@@ -48,6 +65,23 @@ internal static class TrafficLogSanitizer
         if (source.Length > maxLength)
             sb.Append("...[truncated]");
 
-        return sb.ToString();
+        return sb.ToStringAndDispose();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void AppendUnicodeEscape(ref PooledStringBuilder sb, char c)
+    {
+        sb.Append('\\');
+        sb.Append('u');
+        sb.Append(ToHexChar((c >> 12) & 0xF));
+        sb.Append(ToHexChar((c >> 8) & 0xF));
+        sb.Append(ToHexChar((c >> 4) & 0xF));
+        sb.Append(ToHexChar(c & 0xF));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static char ToHexChar(int value)
+    {
+        return (char)(value < 10 ? '0' + value : 'a' + (value - 10));
     }
 }

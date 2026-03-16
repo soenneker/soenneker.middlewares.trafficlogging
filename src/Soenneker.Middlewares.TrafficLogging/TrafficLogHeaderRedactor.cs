@@ -1,12 +1,14 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
 using System;
 using System.Collections.Generic;
+using System.Collections.Frozen;
 
 namespace Soenneker.Middlewares.TrafficLogging;
 
 internal static class TrafficLogHeaderRedactor
 {
-    private static readonly HashSet<string> _sensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly FrozenSet<string> _sensitiveHeaders = new[]
     {
         "Authorization",
         "Cookie",
@@ -14,22 +16,22 @@ internal static class TrafficLogHeaderRedactor
         "X-Api-Key",
         "Api-Key",
         "Proxy-Authorization"
-    };
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     public static Dictionary<string, string> Redact(IHeaderDictionary headers, int maxValueLength = 512, bool enableRedaction = true)
     {
         var result = new Dictionary<string, string>(headers.Count, StringComparer.OrdinalIgnoreCase);
 
-        foreach (KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues> kvp in headers)
+        foreach ((string key, StringValues value) in headers)
         {
-            if (enableRedaction && _sensitiveHeaders.Contains(kvp.Key))
+            if (enableRedaction && _sensitiveHeaders.Contains(key))
             {
-                result[kvp.Key] = "[REDACTED]";
+                result[key] = "[REDACTED]";
                 continue;
             }
 
-            var joined = kvp.Value.ToString();
-            result[kvp.Key] = TrafficLogSanitizer.Sanitize(joined, maxValueLength) ?? string.Empty;
+            string joined = value.ToString();
+            result[key] = TrafficLogSanitizer.Sanitize(joined, maxValueLength) ?? string.Empty;
         }
 
         return result;

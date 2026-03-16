@@ -20,14 +20,16 @@ namespace Soenneker.Middlewares.TrafficLogging;
 /// </summary>
 public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
 {
-    private const int _maxLoggedBodyBytes = 32 * 1024; // 32KB cap to protect memory/logs
+    private const int _maxLoggedBodyBytes = 32 * 1024;
+    private const long _maxReadableRequestBodyBytes = 5 * 1024 * 1024;
 
     private readonly RequestDelegate _next;
     private readonly ILogger<TrafficLoggingMiddleware> _logger;
     private readonly IMemoryStreamUtil _memoryStreamUtil;
     private readonly bool _enableHeaderRedaction;
 
-    public TrafficLoggingMiddleware(RequestDelegate next, ILogger<TrafficLoggingMiddleware> logger, IMemoryStreamUtil memoryStreamUtil, IConfiguration configuration)
+    public TrafficLoggingMiddleware(RequestDelegate next, ILogger<TrafficLoggingMiddleware> logger, IMemoryStreamUtil memoryStreamUtil,
+        IConfiguration configuration)
     {
         _next = next;
         _logger = logger;
@@ -37,78 +39,105 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
 
     public async Task Invoke(HttpContext context)
     {
-        // Skip entirely for WebSocket upgrades
         if (context.WebSockets?.IsWebSocketRequest == true)
         {
-            await _next(context).NoSync();
+            await _next(context)
+                .NoSync();
             return;
         }
 
-        await LogRequest(context).NoSync();
-        await LogResponse(context).NoSync();
+        if (!_logger.IsEnabled(LogLevel.Information))
+        {
+            await _next(context)
+                .NoSync();
+            return;
+        }
+
+        await LogRequest(context)
+            .NoSync();
+        await LogResponse(context)
+            .NoSync();
     }
 
     private async ValueTask LogRequest(HttpContext context)
     {
         HttpRequest req = context.Request;
 
+        string scheme = TrafficLogSanitizer.Sanitize(req.Scheme) ?? string.Empty;
+        string host = TrafficLogSanitizer.Sanitize(req.Host.Value) ?? string.Empty;
+        string path = TrafficLogSanitizer.Sanitize(req.Path.Value) ?? string.Empty;
+        string queryString = TrafficLogSanitizer.Sanitize(req.QueryString.Value) ?? string.Empty;
+
         if (!ShouldReadBody(req.Method, req.ContentLength, req.ContentType))
         {
-            _logger.LogInformation("HTTP Request: {Scheme} {Host} {Path} {QueryString} Status:{Status} {@Headers}", req.Scheme, req.Host, req.Path,
-                req.QueryString.Value ?? string.Empty, context.Response.StatusCode, TrafficLogHeaderRedactor.Redact(req.Headers, enableRedaction: _enableHeaderRedaction));
+            _logger.LogInformation("HTTP Request: {Scheme} {Host} {Path} {QueryString} Status:{Status} {@Headers}", scheme, host, path, queryString,
+                context.Response.StatusCode, TrafficLogHeaderRedactor.Redact(req.Headers, enableRedaction: _enableHeaderRedaction));
+
             return;
         }
 
-        req.EnableBuffering(); // internal buffering (memory/disk) managed by ASP.NET Core
+        req.EnableBuffering();
 
-        (string bodyText, long? totalLength) = await req.Body.ReadTextUpTo(_maxLoggedBodyBytes).NoSync();
+        (string bodyText, long? totalLength) = await req.Body.ReadTextUpTo(_maxLoggedBodyBytes)
+                                                        .NoSync();
 
         if (req.Body.CanSeek)
             req.Body.Position = 0;
 
         _logger.LogInformation(
-            "HTTP Request: {Scheme} {Host} {Path} {QueryString} Status:{Status} {@Headers} BodyLength:{BodyLength} Body(TruncatedTo:{Cap}): {Body}", req.Scheme,
-            req.Host, req.Path, req.QueryString.Value ?? string.Empty, context.Response.StatusCode, TrafficLogHeaderRedactor.Redact(req.Headers, enableRedaction: _enableHeaderRedaction), totalLength, _maxLoggedBodyBytes, bodyText);
+            "HTTP Request: {Scheme} {Host} {Path} {QueryString} Status:{Status} {@Headers} BodyLength:{BodyLength} Body(TruncatedTo:{Cap}): {Body}", scheme,
+            host, path, queryString, context.Response.StatusCode, TrafficLogHeaderRedactor.Redact(req.Headers, enableRedaction: _enableHeaderRedaction),
+            totalLength, _maxLoggedBodyBytes, TrafficLogSanitizer.Sanitize(bodyText, _maxLoggedBodyBytes));
     }
 
     private async ValueTask LogResponse(HttpContext context)
     {
         Stream originalBody = context.Response.Body;
 
-        // Use your recyclable memory stream util to buffer response
-        await using MemoryStream responseBuffer = await _memoryStreamUtil.Get().NoSync();
+        await using MemoryStream responseBuffer = await _memoryStreamUtil.Get()
+                                                                         .NoSync();
         context.Response.Body = responseBuffer;
 
         try
         {
-            await _next(context).NoSync();
+            await _next(context)
+                .NoSync();
         }
         finally
         {
-            // Always restore original body
             context.Response.Body = originalBody;
         }
 
+        string scheme = TrafficLogSanitizer.Sanitize(context.Request.Scheme) ?? string.Empty;
+        string host = TrafficLogSanitizer.Sanitize(context.Request.Host.Value) ?? string.Empty;
+        string path = TrafficLogSanitizer.Sanitize(context.Request.Path.Value) ?? string.Empty;
+        string queryString = TrafficLogSanitizer.Sanitize(context.Request.QueryString.Value) ?? string.Empty;
+
         string? responseText = null;
         string? contentType = context.Response.ContentType;
+        long bodyLength = responseBuffer.Length;
 
-        // 204/304 have no bodies by definition
-        if (context.Response.StatusCode is not (StatusCodes.Status204NoContent or StatusCodes.Status304NotModified) && LooksTextLike(contentType))
+        if (context.Response.StatusCode is not (StatusCodes.Status204NoContent or StatusCodes.Status304NotModified) && bodyLength > 0 &&
+            LooksTextLike(contentType))
         {
-            responseBuffer.ToStart();
+            responseBuffer.Position = 0;
+
+            Encoding encoding = GetEncoding(contentType);
 
             if (responseBuffer.TryGetBuffer(out ArraySegment<byte> seg))
             {
-                int len = Math.Min(seg.Count, _maxLoggedBodyBytes);
-                responseText = Decode(seg.AsSpan(0, len), GetEncoding(contentType));
+                int len = (int)Math.Min(seg.Count, _maxLoggedBodyBytes);
+                responseText = Decode(seg.AsSpan(0, len), encoding);
             }
             else
             {
                 byte[] rented = ArrayPool<byte>.Shared.Rent(_maxLoggedBodyBytes);
+
                 try
                 {
-                    int read = await responseBuffer.ReadAsync(rented, 0, _maxLoggedBodyBytes).NoSync();
-                    responseText = Decode(new ReadOnlySpan<byte>(rented, 0, read), GetEncoding(contentType));
+                    int read = await responseBuffer.ReadAsync(rented.AsMemory(0, _maxLoggedBodyBytes), context.RequestAborted)
+                                                   .NoSync();
+                    responseText = Decode(rented.AsSpan(0, read), encoding);
                 }
                 finally
                 {
@@ -117,16 +146,15 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
             }
         }
 
-        long bodyLength = responseBuffer.Length;
-
         _logger.LogInformation(
-            "HTTP Response: {Scheme} {Host} {Path} Status:{Status} {QueryString} {@Headers} BodyLength:{BodyLength} Body(TruncatedTo:{Cap}): {Body}",
-            context.Request.Scheme, context.Request.Host, context.Request.Path, context.Response.StatusCode, context.Request.QueryString.Value ?? string.Empty,
-            TrafficLogHeaderRedactor.Redact(context.Response.Headers, enableRedaction: _enableHeaderRedaction), bodyLength, _maxLoggedBodyBytes, responseText);
+            "HTTP Response: {Scheme} {Host} {Path} Status:{Status} {QueryString} {@Headers} BodyLength:{BodyLength} Body(TruncatedTo:{Cap}): {Body}", scheme,
+            host, path, context.Response.StatusCode, queryString,
+            TrafficLogHeaderRedactor.Redact(context.Response.Headers, enableRedaction: _enableHeaderRedaction), bodyLength, _maxLoggedBodyBytes,
+            TrafficLogSanitizer.Sanitize(responseText, _maxLoggedBodyBytes));
 
-        // Copy buffered response to the actual stream
-        responseBuffer.ToStart();
-        await responseBuffer.CopyToAsync(originalBody, context.RequestAborted).NoSync();
+        responseBuffer.Position = 0;
+        await responseBuffer.CopyToAsync(originalBody, context.RequestAborted)
+                            .NoSync();
     }
 
     private static bool ShouldReadBody(string method, long? contentLength, string? contentType)
@@ -137,7 +165,7 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
         if (contentLength == 0)
             return false;
 
-        if (contentLength is > 5 * 1024 * 1024)
+        if (contentLength is > _maxReadableRequestBodyBytes)
             return false;
 
         return LooksTextLike(contentType);
@@ -151,9 +179,8 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
         ReadOnlySpan<char> s = contentType.AsSpan();
 
         int semi = s.IndexOf(';');
-
         if (semi >= 0)
-            s = s.Slice(0, semi);
+            s = s[..semi];
 
         s = s.Trim();
 
@@ -169,7 +196,7 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
         int plus = s.LastIndexOf('+');
         if (plus > 0)
         {
-            ReadOnlySpan<char> suffix = s.Slice(plus + 1);
+            ReadOnlySpan<char> suffix = s[(plus + 1)..];
             if (suffix.Equals("json".AsSpan(), StringComparison.OrdinalIgnoreCase) || suffix.Equals("xml".AsSpan(), StringComparison.OrdinalIgnoreCase))
                 return true;
         }
@@ -177,18 +204,6 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
         return false;
     }
 
-    /// <summary>
-    /// Attempts to determine the correct <see cref="Encoding"/> from a response or request
-    /// <c>Content-Type</c> header string.
-    /// </summary>
-    /// <param name="contentType">
-    /// The Content-Type header value, such as <c>"application/json; charset=utf-16"</c>.
-    /// If <c>null</c> or no valid <c>charset</c> is specified, UTF-8 is returned.
-    /// </param>
-    /// <returns>
-    /// A <see cref="Encoding"/> instance representing the declared <c>charset</c>, or
-    /// <see cref="Encoding.UTF8"/> if no charset is specified or the charset is invalid.
-    /// </returns>
     private static Encoding GetEncoding(string? contentType)
     {
         if (contentType.IsNullOrEmpty())
@@ -196,15 +211,18 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
 
         ReadOnlySpan<char> s = contentType.AsSpan();
         int idx = s.IndexOf("charset=", StringComparison.OrdinalIgnoreCase);
-        if (idx < 0) return Encoding.UTF8;
+        if (idx < 0)
+            return Encoding.UTF8;
 
-        ReadOnlySpan<char> rest = s.Slice(idx + "charset=".Length);
+        ReadOnlySpan<char> rest = s[(idx + "charset=".Length)..];
         int semi = rest.IndexOf(';');
-
-        if (semi >= 0) 
-            rest = rest.Slice(0, semi);
+        if (semi >= 0)
+            rest = rest[..semi];
 
         rest = rest.Trim();
+
+        if (rest.Length == 0)
+            return Encoding.UTF8;
 
         try
         {
