@@ -41,7 +41,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-
+        
         <None Include="..\..\README.md" Pack="true" PackagePath="\" />
         <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
         <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
@@ -52,8 +52,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Soenneker.Extensions.Stream" Version="4.0.120" />
         <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2509" />
-        <PackageReference Include="Soenneker.Utils.MemoryStream" Version="4.0.1431" />
     </ItemGroup>
 </Project>
