@@ -1,16 +1,15 @@
-﻿using Soenneker.Tests.FixturedUnit;
-using Xunit;
+using Soenneker.Tests.HostedUnit;
 
 namespace Soenneker.Middlewares.TrafficLogging.Tests;
 
-[Collection("Collection")]
-public class TrafficLoggingMiddlewareTests : FixturedUnitTest
+[ClassDataSource<Host>(Shared = SharedType.PerTestSession)]
+public class TrafficLoggingMiddlewareTests : HostedUnitTest
 {
-    public TrafficLoggingMiddlewareTests(Fixture fixture, ITestOutputHelper output) : base(fixture, output)
+    public TrafficLoggingMiddlewareTests(Host host) : base(host)
     {
     }
 
-    [Fact]
+    [Test]
     public void Default()
     {
 
