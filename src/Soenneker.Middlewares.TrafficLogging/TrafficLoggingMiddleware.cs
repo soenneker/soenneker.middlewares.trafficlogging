@@ -37,6 +37,11 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
         _enableHeaderRedaction = configuration.GetValue("TrafficLogging:EnableHeaderRedaction", true);
     }
 
+    /// <summary>
+    /// Executes the invoke operation.
+    /// </summary>
+    /// <param name="context">The context.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task Invoke(HttpContext context)
     {
         if (context.WebSockets?.IsWebSocketRequest == true)
