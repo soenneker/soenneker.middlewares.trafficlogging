@@ -15,9 +15,7 @@ using Soenneker.Extensions.String;
 
 namespace Soenneker.Middlewares.TrafficLogging;
 
-/// <summary>
-/// Logs inbound requests and outbound responses with bounded bodies for performance and safety.
-/// </summary>
+/// <inheritdoc cref="ITrafficLoggingMiddleware"/>
 public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
 {
     private const int _maxLoggedBodyBytes = 32 * 1024;
