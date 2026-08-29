@@ -38,10 +38,10 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
     }
 
     /// <summary>
-    /// Executes the invoke operation.
+    /// Invokes the traffic logging middleware with the supplied payload.
     /// </summary>
-    /// <param name="context">The context.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <param name="context">HTTP context containing the Authorization header.</param>
+    /// <returns>A task that completes when the callback has finished running.</returns>
     public async Task Invoke(HttpContext context)
     {
         if (context.WebSockets?.IsWebSocketRequest == true)
