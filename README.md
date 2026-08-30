@@ -1,38 +1,53 @@
+# Soenneker.Middlewares.TrafficLogging
 [![](https://img.shields.io/nuget/v/soenneker.middlewares.trafficlogging.svg?style=for-the-badge)](https://www.nuget.org/packages/soenneker.middlewares.trafficlogging/)
 [![](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.middlewares.trafficlogging/publish-package.yml?style=for-the-badge)](https://github.com/soenneker/soenneker.middlewares.trafficlogging/actions/workflows/publish-package.yml)
 [![](https://img.shields.io/nuget/dt/soenneker.middlewares.trafficlogging.svg?style=for-the-badge)](https://www.nuget.org/packages/soenneker.middlewares.trafficlogging/)
 [![](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.middlewares.trafficlogging/codeql.yml?label=CodeQL&style=for-the-badge)](https://github.com/soenneker/soenneker.middlewares.trafficlogging/actions/workflows/codeql.yml)
 
-# Soenneker.Middlewares.TrafficLogging
+Adds structured ASP.NET Core request and response logging with sensitive payload capture disabled by default.
 
-Middleware that logs the full HTTP request and response, including headers and body, using buffered memory streams.
-
-## Install
+## Installation
 
 ```bash
 dotnet add package Soenneker.Middlewares.TrafficLogging
 ```
 
-## Quick start
+## Registration
+
+No service registration is required:
 
 ```csharp
 using Soenneker.Middlewares.TrafficLogging.Registrars;
-using Microsoft.Extensions.DependencyInjection;
 
-var services = new ServiceCollection();
-var result = services.AddTrafficLoggingMiddlewareAsSingleton();
+app.UseTrafficLogging();
+app.MapControllers();
 ```
 
-Adds `ITrafficLoggingMiddleware` as a singleton service. Set `TrafficLogging:EnableHeaderRedaction` in configuration to false to disable redaction (default is true).
+Place it before endpoints and other middleware whose responses should be logged. WebSocket requests are passed through without traffic logging. If Information logging is disabled for `Soenneker.Middlewares.TrafficLogging.TrafficLoggingMiddleware`, the middleware adds no request or response capture.
 
-## What you get
+## Default output
 
-- `ITrafficLoggingMiddleware` — Middleware that logs the full HTTP request and response, including headers and body, using buffered memory streams.
-- `TrafficLoggingMiddlewareRegistrar` — Middleware that logs the full HTTP request and response, including headers and body, using buffered memory streams.
+The default log records method, scheme, host, path, response status, and known body length. It does not log query strings, headers, request bodies, or response bodies.
 
-## API at a glance
+Enable additional fields individually through configuration:
 
-| API | What it does | Result / important behavior |
-| --- | --- | --- |
-| `TrafficLoggingMiddlewareRegistrar.AddTrafficLoggingMiddlewareAsSingleton(services)` | Adds `ITrafficLoggingMiddleware` as a singleton service. Set `TrafficLogging:EnableHeaderRedaction` in configuration to false to disable redaction (default is true). | The same service collection, so additional registrations can be chained. |
-| `TrafficLoggingMiddlewareRegistrar.UseTrafficLogging(builder)` | Adds traffic logging for each request. Be careful! This logs the full HTTP request and response, including headers and body, using buffered memory streams. Be sure to register first via AddTrafficLoggingMiddlewareAsSingleton(). | The same builder instance, so additional classes or variants can be chained. |
+```json
+{
+  "TrafficLogging": {
+    "LogHeaders": true,
+    "LogQueryString": false,
+    "LogRequestBody": false,
+    "LogResponseBody": false
+  }
+}
+```
+
+Headers whose names indicate authorization, cookies, API keys, secrets, or tokens are always replaced with `[REDACTED]`. Header values are capped at 512 characters.
+
+Text-like request and response bodies are captured only when their respective setting is enabled, and only the first 32 KiB is logged. Request body capture is skipped for GET, HEAD, DELETE, and TRACE, for declared empty bodies, for declared bodies over 5 MiB, and for non-text content types. Response capture forwards writes immediately and retains only the capped prefix, so it does not buffer the complete response or delay streaming output.
+
+## Security considerations
+
+Opt-in data can still contain passwords, access tokens, personal information, and application-specific secret headers that a name-based redactor cannot identify. Query strings and JSON/form bodies are especially high risk. Enable them only in a controlled environment with appropriate log access, retention, and deletion policies.
+
+Captured text is sanitized for control characters to prevent line-oriented log injection. Host names, paths, header values, and payload text remain attacker-controlled data and should not be used to construct log templates or security decisions.

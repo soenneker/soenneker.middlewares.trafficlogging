@@ -1,8 +1,17 @@
-﻿namespace Soenneker.Middlewares.TrafficLogging.Abstract;
+using Microsoft.AspNetCore.Http;
+using System.Threading.Tasks;
+
+namespace Soenneker.Middlewares.TrafficLogging.Abstract;
 
 /// <summary>
-/// Middleware that logs the full HTTP request and response, including headers and body, using buffered memory streams.
+/// Logs HTTP request and response metadata with optional capped payload capture.
 /// </summary>
 public interface ITrafficLoggingMiddleware
 {
+    /// <summary>
+    /// Invokes traffic logging for the supplied HTTP context.
+    /// </summary>
+    /// <param name="context">Current HTTP context.</param>
+    /// <returns>A task that completes with the remaining request pipeline.</returns>
+    Task Invoke(HttpContext context);
 }

@@ -1,36 +1,26 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
-using Soenneker.Middlewares.TrafficLogging.Abstract;
-using Soenneker.Utils.MemoryStream.Registrars;
+using System;
 
 namespace Soenneker.Middlewares.TrafficLogging.Registrars;
 
 /// <summary>
-/// Middleware that logs the full HTTP request and response, including headers and body, using buffered memory streams.
+/// Registers HTTP traffic logging.
 /// </summary>
 public static class TrafficLoggingMiddlewareRegistrar
 {
     /// <summary>
-    /// Adds <see cref="ITrafficLoggingMiddleware"/> as a singleton service. <para/>
-    /// Set <c>TrafficLogging:EnableHeaderRedaction</c> in configuration to false to disable redaction (default is true).
+    /// Retained for source compatibility. Traffic logging does not require a service registration.
     /// </summary>
-    /// <param name="services">Service collection that receives the registration.</param>
-    /// <returns>The same service collection, so additional registrations can be chained.</returns>
-    public static IServiceCollection AddTrafficLoggingMiddlewareAsSingleton(this IServiceCollection services)
-    {
-        services.AddMemoryStreamUtilAsSingleton();
-
-        return services;
-    }
+    /// <param name="services">Service collection.</param>
+    /// <returns>The same service collection.</returns>
+    [Obsolete("No service registration is required. Call UseTrafficLogging() on the application builder.")]
+    public static IServiceCollection AddTrafficLoggingMiddlewareAsSingleton(this IServiceCollection services) => services;
 
     /// <summary>
-    /// Adds traffic logging for each request. Be careful! This logs the full HTTP request and response, including headers and body, using buffered memory streams. <para/>
-    /// Be sure to register first via <code>AddTrafficLoggingMiddlewareAsSingleton()</code>
+    /// Adds traffic logging to the application pipeline.
     /// </summary>
-    /// <param name="builder">Builder to configure.</param>
-    /// <returns>The same builder instance, so additional classes or variants can be chained.</returns>
-    public static IApplicationBuilder UseTrafficLogging(this IApplicationBuilder builder)
-    {
-        return builder.UseMiddleware<TrafficLoggingMiddleware>();
-    }
+    /// <param name="builder">Application builder to configure.</param>
+    /// <returns>The same builder instance, so additional middleware can be chained.</returns>
+    public static IApplicationBuilder UseTrafficLogging(this IApplicationBuilder builder) => builder.UseMiddleware<TrafficLoggingMiddleware>();
 }
