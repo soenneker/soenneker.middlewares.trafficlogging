@@ -1,3 +1,5 @@
+using Soenneker.Extensions.ValueTask;
+using Soenneker.Extensions.Task;
 using System;
 using System.IO;
 using System.Security.Cryptography;
@@ -65,14 +67,14 @@ internal sealed class PrefixCaptureStream : Stream
 
     public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        await _inner.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+        await _inner.WriteAsync(buffer, cancellationToken).NoSync();
         Interlocked.Add(ref _totalBytesWritten, buffer.Length);
         Capture(buffer.Span);
     }
 
     public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
     {
-        await _inner.WriteAsync(buffer, offset, count, cancellationToken).ConfigureAwait(false);
+        await _inner.WriteAsync(buffer, offset, count, cancellationToken).NoSync();
         Interlocked.Add(ref _totalBytesWritten, count);
         Capture(buffer.AsSpan(offset, count));
     }

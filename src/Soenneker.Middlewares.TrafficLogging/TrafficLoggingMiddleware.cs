@@ -1,3 +1,4 @@
+using Soenneker.Extensions.ValueTask;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -43,7 +44,7 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
             return;
         }
 
-        await LogRequest(context).ConfigureAwait(false);
+        await LogRequest(context).NoSync();
 
         Stream originalBody = context.Response.Body;
         PrefixCaptureStream? capture = null;
@@ -83,7 +84,7 @@ public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
         {
             request.EnableBuffering();
 
-            (string bodyText, long? totalLength) = await request.Body.ReadTextUpTo(_maxLoggedBodyBytes, context.RequestAborted).ConfigureAwait(false);
+            (string bodyText, long? totalLength) = await request.Body.ReadTextUpTo(_maxLoggedBodyBytes, context.RequestAborted).NoSync();
             body = TrafficLogSanitizer.Sanitize(bodyText, _maxLoggedBodyBytes);
             bodyLength = totalLength ?? bodyLength;
 

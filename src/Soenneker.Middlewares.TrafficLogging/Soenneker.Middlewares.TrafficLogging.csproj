@@ -49,5 +49,7 @@
 
     <ItemGroup>
         <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2669" />
+        <PackageReference Include="Soenneker.Extensions.Task" Version="4.0.128" />
+        <PackageReference Include="Soenneker.Extensions.ValueTask" Version="4.0.120" />
     </ItemGroup>
 </Project>
