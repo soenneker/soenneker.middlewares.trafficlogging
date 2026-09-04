@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 
 namespace Soenneker.Middlewares.TrafficLogging;
 
+/// <inheritdoc cref="ITrafficLoggingMiddleware" />
 public sealed class TrafficLoggingMiddleware : ITrafficLoggingMiddleware
 {
     private const int _maxLoggedBodyBytes = 32 * 1024;
