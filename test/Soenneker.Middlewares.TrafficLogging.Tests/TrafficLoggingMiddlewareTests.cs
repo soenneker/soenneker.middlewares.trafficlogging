@@ -17,7 +17,7 @@ public class TrafficLoggingMiddlewareTests : HostedUnitTest
     }
 
     [Test]
-    public async Task Response_body_larger_than_capture_limit_is_fully_forwarded()
+    public async ValueTask Response_body_larger_than_capture_limit_is_fully_forwarded()
     {
         byte[] payload = new byte[64 * 1024];
         Random.Shared.NextBytes(payload);
