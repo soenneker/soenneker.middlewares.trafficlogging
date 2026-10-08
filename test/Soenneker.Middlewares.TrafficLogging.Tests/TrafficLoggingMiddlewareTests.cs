@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace Soenneker.Middlewares.TrafficLogging.Tests;
 
@@ -17,7 +18,7 @@ public class TrafficLoggingMiddlewareTests : HostedUnitTest
     }
 
     [Test]
-    public async ValueTask Response_body_larger_than_capture_limit_is_fully_forwarded()
+    public async ValueTask Response_body_larger_than_capture_limit_is_fully_forwarded(CancellationToken cancellationToken)
     {
         byte[] payload = new byte[64 * 1024];
         Random.Shared.NextBytes(payload);
@@ -32,7 +33,7 @@ public class TrafficLoggingMiddlewareTests : HostedUnitTest
         RequestDelegate next = async context =>
         {
             context.Response.ContentType = "application/octet-stream";
-            await context.Response.Body.WriteAsync(payload);
+            await context.Response.Body.WriteAsync(payload, cancellationToken: cancellationToken);
         };
 
         var middleware = new TrafficLoggingMiddleware(next, new EnabledLogger<TrafficLoggingMiddleware>(), configuration);
