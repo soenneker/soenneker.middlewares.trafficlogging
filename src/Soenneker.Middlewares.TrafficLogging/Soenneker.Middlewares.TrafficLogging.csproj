@@ -52,8 +52,8 @@
     <ItemGroup>
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="Soenneker.Extensions.Stream" Version="4.0.169" />
-        <PackageReference Include="Soenneker.Extensions.String" Version="4.0.790" />
+        <PackageReference Include="Soenneker.Extensions.Stream" Version="4.0.171" />
+        <PackageReference Include="Soenneker.Extensions.String" Version="4.0.791" />
         <PackageReference Include="Soenneker.Extensions.Task" Version="4.0.139" />
         <PackageReference Include="Soenneker.Extensions.ValueTask" Version="4.0.132" />
         <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="4.0.42" />
