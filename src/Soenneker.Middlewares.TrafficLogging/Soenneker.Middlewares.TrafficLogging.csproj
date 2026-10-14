@@ -56,6 +56,6 @@
         <PackageReference Include="Soenneker.Extensions.String" Version="4.0.791" />
         <PackageReference Include="Soenneker.Extensions.Task" Version="4.0.139" />
         <PackageReference Include="Soenneker.Extensions.ValueTask" Version="4.0.132" />
-        <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="4.0.42" />
+        <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="4.0.43" />
     </ItemGroup>
 </Project>
